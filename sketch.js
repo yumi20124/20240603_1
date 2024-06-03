@@ -1,127 +1,63 @@
-/* MoveNet Skeleton - Steve's Makerspace (most of this code is from TensorFlow)
+let video;
+let poseNet;
+let pose;
+let skeleton;
 
-MoveNet is developed by TensorFlow:
-https://www.tensorflow.org/hub/tutorials/movenet
-
-*/
-
-let video, bodypose, pose, keypoint, detector;
-let poses = [];
-
-async function init() {
-  const detectorConfig = {
-    modelType: poseDetection.movenet.modelType.MULTIPOSE_LIGHTNING,
-  };
-  detector = await poseDetection.createDetector(
-    poseDetection.SupportedModels.MoveNet,
-    detectorConfig
-  );
-}
-
-async function videoReady() {
-  console.log("video ready");
-  await getPoses();
-}
-
-async function getPoses() {
-  if (detector) {
-    poses = await detector.estimatePoses(video.elt, {
-      maxPoses: 2,
-      //flipHorizontal: true,
-    });
-  }
-  requestAnimationFrame(getPoses);
-}
-
-async function setup() {
+function setup() {
   createCanvas(640, 480);
-  video = createCapture(VIDEO, videoReady);
-  video.size(width, height);
+	//createCanvas(windowWidth, windowHeight);
+  video = createCapture(VIDEO);
   video.hide();
-  await init();
+  poseNet = ml5.poseNet(video, modelLoaded); //呼叫在ml5.js上的net函數，用此函數來判斷各位置，呼叫成功即執行function modelLoaded 
+  poseNet.on('pose', gotPoses);
+}
 
-  stroke(255);
-  strokeWeight(5);
+function gotPoses(poses) {
+  //console.log(poses);
+  if (poses.length > 0) {
+    pose = poses[0].pose;  //把抓到的幾個點，都放置pose變數內
+    skeleton = poses[0].skeleton; //把相關於骨架的點都放到skeleton變數內
+  }
+}
+
+
+function modelLoaded() {   //顯示pose model已經準備就緒
+  console.log('poseNet ready');
 }
 
 function draw() {
-  image(video, 0, 0);
-  drawSkeleton();
-  // flip horizontal
-  cam = get();
-  translate(cam.width, 0);
-  scale(-1, 1);
-  image(cam, 0, 0);
+    background(0);
+		translate(video.width,0)  //因為攝影機顯示的是反像的畫面，需要透過這兩條指令來做反轉
+		scale(-1,1)    //因為攝影機顯示的是反像的畫面，需要透過這兩條指令來做反轉
+    image(video, 0, 0);  //顯示你的畫面在螢幕上
+		if (pose) {
+			let eyeR = pose.rightEye;  //抓到右眼資訊，放到eyeR
+			let eyeL = pose.leftEye;   //抓到左眼資訊，放到eyeL
+			let d = dist(eyeR.x, eyeR.y, eyeL.x, eyeL.y); //算出左右眼的距離，當作鼻子顯示圓的直徑
+			fill(255, 0, 0);
+			ellipse(pose.nose.x, pose.nose.y, d); //畫出鼻子的圓
+			fill(0, 0, 255);
+			ellipse(pose.rightWrist.x, pose.rightWrist.y, 62); //畫出右手腕圓圈
+			ellipse(pose.leftWrist.x, pose.leftWrist.y, 62); //畫出左手腕圓圈
+			drawKeypoints()
+			drawSkeleton()
+ 		}
 }
-
-function drawSkeleton() {
-  // Draw all the tracked landmark points
-  for (let i = 0; i < poses.length; i++) {
-    pose = poses[i];
-    // shoulder to wrist
-    for (j = 5; j < 9; j++) {
-      if (pose.keypoints[j].score > 0.1 && pose.keypoints[j + 2].score > 0.1) {
-        partA = pose.keypoints[j];
-        partB = pose.keypoints[j + 2];
-        line(partA.x, partA.y, partB.x, partB.y);
-      }
+function drawKeypoints()  {  
+    for (let i = 0; i < pose.keypoints.length; i++) {
+      let x = pose.keypoints[i].position.x;//找出每一個點的x座標
+      let y = pose.keypoints[i].position.y;//找出每一個點的y座標
+      fill(0,255,0);
+      ellipse(x,y,16,16);
     }
-    // shoulder to shoulder
-    partA = pose.keypoints[5];
-    partB = pose.keypoints[6];
-    if (partA.score > 0.1 && partB.score > 0.1) {
-      line(partA.x, partA.y, partB.x, partB.y);
-      
-    }
-    // hip to hip
-    partA = pose.keypoints[11];
-    partB = pose.keypoints[12];
-    if (partA.score > 0.1 && partB.score > 0.1) {
-      line(partA.x, partA.y, partB.x, partB.y);
-      
-    }
-    // shoulders to hips
-    partA = pose.keypoints[5];
-    partB = pose.keypoints[11];
-    if (partA.score > 0.1 && partB.score > 0.1) {
-      line(partA.x, partA.y, partB.x, partB.y);
-      
-    }
-    partA = pose.keypoints[6];
-    partB = pose.keypoints[12];
-    if (partA.score > 0.1 && partB.score > 0.1) {
-      line(partA.x, partA.y, partB.x, partB.y);
-      
-    }
-    // hip to foot
-    for (j = 11; j < 15; j++) {
-      if (pose.keypoints[j].score > 0.1 && pose.keypoints[j + 2].score > 0.1) {
-        partA = pose.keypoints[j];
-        partB = pose.keypoints[j + 2];
-        line(partA.x, partA.y, partB.x, partB.y);
-        
-      }
+	//print(pose.keypoints.length)
+	}
+function drawSkeleton()  {
+    for (let i = 0; i < skeleton.length; i++) {
+      let a = skeleton[i][0];
+      let b = skeleton[i][1];			
+      strokeWeight(2);
+      stroke(255,0,0);
+      line(a.position.x, a.position.y,b.position.x,b.position.y);			
     }
   }
-}
-
-/* Points (view on left of screen = left part - when mirrored)
-  0 nose
-  1 left eye
-  2 right eye
-  3 left ear
-  4 right ear
-  5 left shoulder
-  6 right shoulder
-  7 left elbow
-  8 right elbow
-  9 left wrist
-  10 right wrist
-  11 left hip
-  12 right hip
-  13 left kneee
-  14 right knee
-  15 left foot
-  16 right foot
-*/
-
